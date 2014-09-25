@@ -18,6 +18,8 @@ type Subscription struct {
 	proj string
 	name string
 	s    *raw.Service
+
+	open chan bool
 }
 
 type Topic struct {
@@ -43,6 +45,7 @@ func (c *Client) Subscription(name string) *Subscription {
 		proj: c.proj,
 		name: name,
 		s:    c.s,
+		open: make(chan bool),
 	}
 }
 
@@ -93,6 +96,10 @@ func (s *Subscription) Ack(id ...string) error {
 }
 
 func (s *Subscription) Listen() (<-chan *Message, error) {
+	panic("not yet implemented")
+}
+
+func (s *Subscription) Stop() {
 	panic("not yet implemented")
 }
 
