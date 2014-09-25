@@ -62,15 +62,23 @@ func (s *Subscription) Create(topic string, deadline time.Duration, endpoint str
 }
 
 func (s *Subscription) Delete() error {
-	panic("not yet implemented")
+	return s.s.Subscriptions.Delete(fullSubName(s.proj, s.name)).Do()
 }
 
 func (s *Subscription) ModifyAckDeadline(deadline time.Duration) error {
-	panic("not yet implemented")
+	return s.s.Subscriptions.ModifyAckDeadline(&raw.ModifyAckDeadlineRequest{
+		Subscription:       fullSubName(s.proj, s.name),
+		AckDeadlineSeconds: int64(deadline),
+	}).Do()
 }
 
 func (s *Subscription) ModifyPushEndpoint(endpoint string) error {
-	panic("not yet implemented")
+	return s.s.Subscriptions.ModifyPushConfig(&raw.ModifyPushConfigRequest{
+		Subscription: fullSubName(s.proj, s.name),
+		PushConfig: &raw.PushConfig{
+			PushEndpoint: endpoint,
+		},
+	}).Do()
 }
 
 func (s *Subscription) IsExists() (bool, error) {
@@ -78,7 +86,10 @@ func (s *Subscription) IsExists() (bool, error) {
 }
 
 func (s *Subscription) Ack(id ...string) error {
-	panic("not yet implemented")
+	return s.s.Subscriptions.Acknowledge(&raw.AcknowledgeRequest{
+		Subscription: fullSubName(s.proj, s.name),
+		AckId:        id,
+	}).Do()
 }
 
 func (s *Subscription) Listen() (<-chan *Message, error) {
@@ -109,10 +120,10 @@ func (t *Topic) Publish(msg *Message) error {
 	panic("not yet implemented")
 }
 
-func fullSubName(proj, sub string) string {
-	return fmt.Sprintf("/subscriptions/%s/%s", proj, sub)
+func fullSubName(proj, name string) string {
+	return fmt.Sprintf("/subscriptions/%s/%s", proj, name)
 }
 
-func fullTopicName(proj, topic string) string {
-	return fmt.Sprintf("/topics/%s/%s", proj, topic)
+func fullTopicName(proj, name string) string {
+	return fmt.Sprintf("/topics/%s/%s", proj, name)
 }
