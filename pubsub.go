@@ -100,8 +100,28 @@ func (s *Subscription) Ack(id ...string) error {
 	}).Do()
 }
 
-func (s *Subscription) Listen() (<-chan *Message, error) {
+func (s *Subscription) pull() ([]*Message, error) {
 	panic("not yet implemented")
+}
+
+func (s *Subscription) Listen() <-chan *Message {
+	messages := make(chan *Message)
+	go func() {
+		select {
+		case <-s.open:
+			return
+		default:
+			msgs, err := s.pull()
+			if err != nil {
+				panic("not yet implemented")
+				return
+			}
+			for _, m := range msgs {
+				messages <- m
+			}
+		}
+	}()
+	return messages
 }
 
 func (s *Subscription) Stop() {
