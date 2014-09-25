@@ -2,6 +2,8 @@
 package pubsub
 
 import (
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -28,7 +30,10 @@ type Topic struct {
 	s    *raw.Service
 }
 
-type Message struct{}
+type Message struct {
+	Data   []byte
+	Labels map[string]interface{}
+}
 
 func New(projID string, tr http.RoundTripper) *Client {
 	return NewWithClient(projID, &http.Client{Transport: tr})
@@ -100,7 +105,7 @@ func (s *Subscription) Listen() (<-chan *Message, error) {
 }
 
 func (s *Subscription) Stop() {
-	panic("not yet implemented")
+	close(s.open)
 }
 
 func (c *Client) Topic(name string) *Topic {
@@ -112,11 +117,14 @@ func (c *Client) Topic(name string) *Topic {
 }
 
 func (t *Topic) Create() error {
-	panic("not yet implemented")
+	_, err := t.s.Topics.Create(&raw.Topic{
+		Name: fullTopicName(t.proj, t.name),
+	}).Do()
+	return err
 }
 
 func (t *Topic) Delete() error {
-	panic("not yet implemented")
+	return t.s.Topics.Delete(fullTopicName(t.proj, t.name)).Do()
 }
 
 func (t *Topic) IsExists() (bool, error) {
@@ -124,7 +132,29 @@ func (t *Topic) IsExists() (bool, error) {
 }
 
 func (t *Topic) Publish(msg *Message) error {
-	panic("not yet implemented")
+	var labels []*raw.Label
+	if msg.Labels != nil {
+		labels := []*raw.Label{}
+		for k, v := range msg.Labels {
+			l := &raw.Label{Key: k}
+			switch v.(type) {
+			case int64:
+				l.NumValue = v.(int64)
+			case string:
+				l.StrValue = v.(string)
+			default:
+				return errors.New("pubsub: label value could be either an int64 or a string")
+			}
+			labels = append(labels, l)
+		}
+	}
+	return t.s.Topics.Publish(&raw.PublishRequest{
+		Topic: fullTopicName(t.proj, t.name),
+		Message: &raw.PubsubMessage{
+			Data:  base64.StdEncoding.EncodeToString(msg.Data), // base64 encoded
+			Label: labels,
+		},
+	}).Do()
 }
 
 func fullSubName(proj, name string) string {
