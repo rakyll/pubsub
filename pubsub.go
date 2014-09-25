@@ -20,8 +20,6 @@ type Subscription struct {
 	proj string
 	name string
 	s    *raw.Service
-
-	open chan bool
 }
 
 type Topic struct {
@@ -31,6 +29,7 @@ type Topic struct {
 }
 
 type Message struct {
+	AckID  string
 	Data   []byte
 	Labels map[string]interface{}
 }
@@ -50,7 +49,6 @@ func (c *Client) Subscription(name string) *Subscription {
 		proj: c.proj,
 		name: name,
 		s:    c.s,
-		open: make(chan bool),
 	}
 }
 
@@ -100,33 +98,35 @@ func (s *Subscription) Ack(id ...string) error {
 	}).Do()
 }
 
-func (s *Subscription) pull() ([]*Message, error) {
-	panic("not yet implemented")
-}
+func (s *Subscription) Pull(retImmediately bool) (*Message, error) {
+	resp, err := s.s.Subscriptions.Pull(&raw.PullRequest{
+		Subscription:      fullSubName(s.proj, s.name),
+		ReturnImmediately: retImmediately,
+	}).Do()
+	if err != nil {
+		return nil, err
+	}
+	data, err := base64.StdEncoding.DecodeString(resp.PubsubEvent.Message.Data)
+	if err != nil {
+		return nil, err
+	}
 
-func (s *Subscription) Listen() <-chan *Message {
-	messages := make(chan *Message)
-	go func() {
-		select {
-		case <-s.open:
-			return
-		default:
-			msgs, err := s.pull()
-			if err != nil {
-				panic("not yet implemented")
-				return
-			}
-			for _, m := range msgs {
-				messages <- m
-			}
+	labels := make(map[string]interface{})
+	for _, l := range resp.PubsubEvent.Message.Label {
+		if l.StrValue != "" {
+			labels[l.Key] = l.StrValue
+		} else {
+			labels[l.Key] = l.NumValue
 		}
-	}()
-	return messages
+	}
+	return &Message{
+		AckID:  resp.AckId,
+		Data:   data,
+		Labels: labels,
+	}, nil
 }
 
-func (s *Subscription) Stop() {
-	close(s.open)
-}
+// TODO(jbd): Add (*Subscription).Listen and (*Subscription).Stop
 
 func (c *Client) Topic(name string) *Topic {
 	return &Topic{
@@ -151,11 +151,11 @@ func (t *Topic) IsExists() (bool, error) {
 	panic("not yet implemented")
 }
 
-func (t *Topic) Publish(msg *Message) error {
-	var labels []*raw.Label
-	if msg.Labels != nil {
-		labels := []*raw.Label{}
-		for k, v := range msg.Labels {
+func (t *Topic) Publish(data []byte, labels map[string]interface{}) error {
+	var rawLabels []*raw.Label
+	if labels != nil {
+		rawLabels := []*raw.Label{}
+		for k, v := range labels {
 			l := &raw.Label{Key: k}
 			switch v.(type) {
 			case int64:
@@ -165,14 +165,14 @@ func (t *Topic) Publish(msg *Message) error {
 			default:
 				return errors.New("pubsub: label value could be either an int64 or a string")
 			}
-			labels = append(labels, l)
+			rawLabels = append(rawLabels, l)
 		}
 	}
 	return t.s.Topics.Publish(&raw.PublishRequest{
 		Topic: fullTopicName(t.proj, t.name),
 		Message: &raw.PubsubMessage{
-			Data:  base64.StdEncoding.EncodeToString(msg.Data), // base64 encoded
-			Label: labels,
+			Data:  base64.StdEncoding.EncodeToString(data),
+			Label: rawLabels,
 		},
 	}).Do()
 }
