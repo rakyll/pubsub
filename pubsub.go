@@ -1,4 +1,21 @@
+// Copyright 2014 Google Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // Package pubsub is a Google Cloud Pub/Sub client.
+//
+// More information about Google Cloud Pub/Sub is available on
+// https://cloud.google.com/pubsub/docs
 package pubsub
 
 import (
@@ -11,39 +28,62 @@ import (
 	raw "code.google.com/p/google-api-go-client/pubsub/v1beta1"
 )
 
+// Client is a Google Cloud Pub/Sub (Pub/Sub) client.
 type Client struct {
 	proj string
 	s    *raw.Service
 }
 
+// Subscription represents a Pub/Sub subscription.
 type Subscription struct {
 	proj string
 	name string
 	s    *raw.Service
 }
 
+// Topic represents a Pub/Sub topic.
 type Topic struct {
 	proj string
 	name string
 	s    *raw.Service
 }
 
+// Message represents a Pub/Sub message.
 type Message struct {
-	AckID  string
-	Data   []byte
+	// AckID is the identifier to acknowledge this message.
+	AckID string
+
+	// Data is the actual data in the message.
+	Data []byte
+
+	// Labels field is optional key-value pairs to label
+	// you message. Values could be either int64 or string.
 	Labels map[string]interface{}
 }
 
+// New creates a new Pub/Sub client to manage topics and subscriptions
+// under the provided project. The provided RoundTripper should be
+// authorized and authenticated to make calls to Google Cloud Storage API.
+// Look at the package samples to for examples of creating authorized
+// and authenticated RoundTripeers.
 func New(projID string, tr http.RoundTripper) *Client {
 	return NewWithClient(projID, &http.Client{Transport: tr})
 }
 
+// NewWithClient creates a new Pub/Sub client to manage topics and
+// subscriptions under the provided project. The client's
+// Transport should be authorized and authenticated to make
+// calls to Google Cloud Storage API.
+// Look at the package samples to for examples of creating authorized
+// and authenticated RoundTripeers.
 func NewWithClient(projID string, c *http.Client) *Client {
 	// TODO(jbd): Add user-agent.
 	s, _ := raw.New(c)
 	return &Client{proj: projID, s: s}
 }
 
+// Subscription returns a client to perform operations on the
+// subscription identified with the specified name.
 func (c *Client) Subscription(name string) *Subscription {
 	return &Subscription{
 		proj: c.proj,
@@ -52,6 +92,16 @@ func (c *Client) Subscription(name string) *Subscription {
 	}
 }
 
+// Create creates a permanent Pub/Sub subscription on the backend.
+// A subscription should subscribe to an existing topic.
+// The messages that haven't acknowledged will be pushed back to the
+// subscription again when the default acknowledgement deadline is
+// reached. You can override the default deadline by providing a
+// non-zero deadline.
+// As new messages are being queued on the subscription channel, you
+// may recieve push notifications regarding to the new arrivals. Provide
+// a URL endpoint push notifications . If an empty string is provided,
+// the backend will not notify you with pushes.
 func (s *Subscription) Create(topic string, deadline time.Duration, endpoint string) error {
 	sub := &raw.Subscription{
 		Topic: fullTopicName(s.proj, topic),
@@ -67,10 +117,13 @@ func (s *Subscription) Create(topic string, deadline time.Duration, endpoint str
 	return err
 }
 
+// Delete deletes a subscription.
 func (s *Subscription) Delete() error {
 	return s.s.Subscriptions.Delete(fullSubName(s.proj, s.name)).Do()
 }
 
+// ModifyAckDeadline modifies the current acknowledgement deadline
+// for the messages retrieved from the current subscription.
 func (s *Subscription) ModifyAckDeadline(deadline time.Duration) error {
 	return s.s.Subscriptions.ModifyAckDeadline(&raw.ModifyAckDeadlineRequest{
 		Subscription:       fullSubName(s.proj, s.name),
@@ -78,6 +131,8 @@ func (s *Subscription) ModifyAckDeadline(deadline time.Duration) error {
 	}).Do()
 }
 
+// ModifyPushEndpoint modifies the URL endpoint to modify the resource
+// to handle push notifications coming from the Pub/Sub backend.
 func (s *Subscription) ModifyPushEndpoint(endpoint string) error {
 	return s.s.Subscriptions.ModifyPushConfig(&raw.ModifyPushConfigRequest{
 		Subscription: fullSubName(s.proj, s.name),
@@ -87,10 +142,12 @@ func (s *Subscription) ModifyPushEndpoint(endpoint string) error {
 	}).Do()
 }
 
+// IsExists returns true if current subscription exists.
 func (s *Subscription) IsExists() (bool, error) {
 	panic("not yet implemented")
 }
 
+// Ack acknowledges one or more Pub/Sub messages.
 func (s *Subscription) Ack(id ...string) error {
 	return s.s.Subscriptions.Acknowledge(&raw.AcknowledgeRequest{
 		Subscription: fullSubName(s.proj, s.name),
@@ -98,6 +155,10 @@ func (s *Subscription) Ack(id ...string) error {
 	}).Do()
 }
 
+// Pull pulls a new message from the subscription queue. If user
+// prefers to return immediately, it will return as soon as possible
+// if there are no messages left. If return immediately is false,
+// it will block until a new message arrives or timeout occurs.
 func (s *Subscription) Pull(retImmediately bool) (*Message, error) {
 	resp, err := s.s.Subscriptions.Pull(&raw.PullRequest{
 		Subscription:      fullSubName(s.proj, s.name),
