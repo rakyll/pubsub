@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	raw "code.google.com/p/google-api-go-client/pubsub/v1beta1"
@@ -49,6 +50,10 @@ type Subscription struct {
 	proj string
 	name string
 	s    *raw.Service
+
+	mu sync.Mutex
+
+	closed chan bool
 }
 
 // Topic represents a Pub/Sub topic.
@@ -98,9 +103,10 @@ func NewWithClient(projID string, c *http.Client) *Client {
 // subscription identified with the specified name.
 func (c *Client) Subscription(name string) *Subscription {
 	return &Subscription{
-		proj: c.proj,
-		name: name,
-		s:    c.s,
+		proj:   c.proj,
+		name:   name,
+		s:      c.s,
+		closed: make(chan bool),
 	}
 }
 
@@ -126,7 +132,7 @@ func (s *Subscription) Create(topic string, deadline time.Duration, endpoint str
 		Name:  fullSubName(s.proj, s.name),
 	}
 	if int64(deadline) > 0 {
-		sub.AckDeadlineSeconds = int64(deadline)
+		sub.AckDeadlineSeconds = int64(deadline) / int64(time.Second)
 	}
 	if endpoint != "" {
 		sub.PushConfig = &raw.PushConfig{PushEndpoint: endpoint}
@@ -178,6 +184,9 @@ func (s *Subscription) Ack(id ...string) error {
 // if there are no messages left. If return immediately is false,
 // it will block until a new message arrives or timeout occurs.
 func (s *Subscription) Pull(retImmediately bool) (*Message, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	resp, err := s.s.Subscriptions.Pull(&raw.PullRequest{
 		Subscription:      fullSubName(s.proj, s.name),
 		ReturnImmediately: retImmediately,
@@ -205,7 +214,37 @@ func (s *Subscription) Pull(retImmediately bool) (*Message, error) {
 	}, nil
 }
 
-// TODO(jbd): Add (*Subscription).Listen and (*Subscription).Stop
+// Listen starts to listening the subscription for new messages.
+// If there are any errors, they are notified back through the
+// returned error channel.
+// It's thread safe to Listen and Pull concurrently.
+func (s *Subscription) Listen() (<-chan *Message, <-chan error) {
+	mc := make(chan *Message)
+	errc := make(chan error)
+	go func() {
+		for {
+			select {
+			case <-s.closed:
+				close(mc)
+				close(errc)
+			default:
+				m, err := s.Pull(false)
+				if err != nil {
+					// TODO(jbd): Implement exponential backoff.
+					errc <- err
+					return
+				}
+				mc <- m
+			}
+		}
+	}()
+	return mc, errc
+}
+
+// Stop stops listening of the current subscription channel.
+func (s *Subscription) Stop() {
+	close(s.closed)
+}
 
 // Topic returns a topic client to run operations related to the Pub/Sub topics.
 func (c *Client) Topic(name string) *Topic {
