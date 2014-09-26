@@ -255,10 +255,14 @@ func (t *Topic) Publish(data []byte, labels map[string]interface{}) error {
 	}).Do()
 }
 
+// fullSubName returns the fully qualified name for a subscription.
+// E.g. /subscriptions/project-id/subscription-name.
 func fullSubName(proj, name string) string {
 	return fmt.Sprintf("/subscriptions/%s/%s", proj, name)
 }
 
+// fullTopicName returns the fully qualified name for a topic.
+// E.g. /topics/project-id/topic-name.
 func fullTopicName(proj, name string) string {
 	return fmt.Sprintf("/topics/%s/%s", proj, name)
 }
