@@ -82,6 +82,8 @@ func NewWithClient(projID string, c *http.Client) *Client {
 	return &Client{proj: projID, s: s}
 }
 
+// TODO(jbd): Add subscription and topic listing.
+
 // Subscription returns a client to perform operations on the
 // subscription identified with the specified name.
 func (c *Client) Subscription(name string) *Subscription {
@@ -94,14 +96,17 @@ func (c *Client) Subscription(name string) *Subscription {
 
 // Create creates a permanent Pub/Sub subscription on the backend.
 // A subscription should subscribe to an existing topic.
+//
 // The messages that haven't acknowledged will be pushed back to the
 // subscription again when the default acknowledgement deadline is
 // reached. You can override the default deadline by providing a
 // non-zero deadline.
+//
 // As new messages are being queued on the subscription channel, you
 // may recieve push notifications regarding to the new arrivals. Provide
 // a URL endpoint push notifications . If an empty string is provided,
 // the backend will not notify you with pushes.
+//
 // It will return an error if subscription already exists. In order
 // to modify acknowledgement deadline and push endpoint, use
 // ModifyAckDeadline and ModifyPushEndpoint.
