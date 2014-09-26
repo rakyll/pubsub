@@ -64,9 +64,12 @@ func Example_publishAndSubscribe() {
 	for {
 		select {
 		case err := <-errc:
-			log.Println("err occured while listening messages:", err)
+			log.Println("error occured while listening messages:", err)
 		case msg := <-mc:
 			log.Println("new message arrived:", msg)
+			if err := sub1.Ack(msg.AckID); err != nil {
+				log.Println("error while acknowledging the message:", err)
+			}
 		}
 	}
 }
