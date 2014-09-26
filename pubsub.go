@@ -228,7 +228,9 @@ func (s *Subscription) Listen() (<-chan *Message, <-chan error) {
 				close(mc)
 				close(errc)
 			default:
-				m, err := s.Pull(false)
+				m, err := s.Pull(true)
+				// TODO(jbd): Switch to retImmediate=false when raw API
+				// returns APIError.
 				if err != nil {
 					// TODO(jbd): Implement exponential backoff.
 					errc <- err
