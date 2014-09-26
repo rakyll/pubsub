@@ -28,6 +28,16 @@ import (
 	raw "code.google.com/p/google-api-go-client/pubsub/v1beta1"
 )
 
+const (
+	// ScopePubSub grants permissions to view and manage Pub/Sub
+	// topics and subscriptions.
+	ScopePubSub = raw.PubsubScope
+
+	// ScopeCloudPlatform grants permissions to view and manage your data
+	// across Google Cloud Platform services.
+	ScopeCloudPlatform = raw.CloudPlatformScope
+)
+
 // Client is a Google Cloud Pub/Sub (Pub/Sub) client.
 type Client struct {
 	proj string
