@@ -102,6 +102,9 @@ func (c *Client) Subscription(name string) *Subscription {
 // may recieve push notifications regarding to the new arrivals. Provide
 // a URL endpoint push notifications . If an empty string is provided,
 // the backend will not notify you with pushes.
+// It will return an error if subscription already exists. In order
+// to modify acknowledgement deadline and push endpoint, use
+// ModifyAckDeadline and ModifyPushEndpoint.
 func (s *Subscription) Create(topic string, deadline time.Duration, endpoint string) error {
 	sub := &raw.Subscription{
 		Topic: fullTopicName(s.proj, topic),
@@ -189,6 +192,7 @@ func (s *Subscription) Pull(retImmediately bool) (*Message, error) {
 
 // TODO(jbd): Add (*Subscription).Listen and (*Subscription).Stop
 
+// Topic returns a topic client to run operations related to the Pub/Sub topics.
 func (c *Client) Topic(name string) *Topic {
 	return &Topic{
 		proj: c.proj,
@@ -197,6 +201,8 @@ func (c *Client) Topic(name string) *Topic {
 	}
 }
 
+// Create creates a new topic with the current topic's name on the backend.
+// It will return an error if topic already exists.
 func (t *Topic) Create() error {
 	_, err := t.s.Topics.Create(&raw.Topic{
 		Name: fullTopicName(t.proj, t.name),
@@ -204,14 +210,20 @@ func (t *Topic) Create() error {
 	return err
 }
 
+// Delete deletes the current topic.
 func (t *Topic) Delete() error {
 	return t.s.Topics.Delete(fullTopicName(t.proj, t.name)).Do()
 }
 
+// IsExists returns true if a topic named with the current topic's name exists.
 func (t *Topic) IsExists() (bool, error) {
 	panic("not yet implemented")
 }
 
+// Publish publishes a new message to the current topic's subscribers.
+// You don't have to label your message. Use nil if there are no labels.
+// Label values could be either int64 or string. It will return an error
+// if you provide n value of another kind.
 func (t *Topic) Publish(data []byte, labels map[string]interface{}) error {
 	var rawLabels []*raw.Label
 	if labels != nil {
