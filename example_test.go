@@ -42,3 +42,31 @@ func Example_auth() {
 	c := pubsub.New("project-id", conf.NewTransport())
 	_ = c // Use the client
 }
+
+func Example_publishAndSubscribe() {
+	c := (*pubsub.Client)(nil) // initiate a pubsub client. See the auth example.
+
+	// Publish hello world on topic1.
+	go func() {
+		for {
+			topic1 := c.Topic("topic1")
+			err := topic1.Publish([]byte("hello"), nil)
+			if err != nil {
+				log.Println(err)
+			}
+		}
+	}()
+
+	sub1 := c.Subscription("sub1")
+	// sub1 is a subscription that is subscribed to topic1.
+	// E.g. sub1.Create("topic1", time.Duration(0), "")
+	mc, errc := sub1.Listen()
+	for {
+		select {
+		case err := <-errc:
+			log.Println("err occured while listening messages:", err)
+		case msg := <-mc:
+			log.Println("new message arrived:", msg)
+		}
+	}
+}
